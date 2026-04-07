@@ -140,7 +140,7 @@ cp .env.example .env
 Open `.env` and set your bot token:
 
 ```dotenv
-BOT_TOKEN=8654751410:AAGVWEajIkwEgwmgHoPffP9P21nr45rFMDg
+BOT_TOKEN=...
 ```
 
 All other defaults work as-is for local Docker Compose.
