@@ -67,9 +67,9 @@ def format_search_results_by_ingredients(
         return (
             f"❌ No cocktails found containing all of: <b>{ing_str}</b>.\n\n"
             "Tips:\n"
-            "• Use full ingredient names: <code>Tonic Water</code> not <code>tonic</code>\n"
             "• Try fewer ingredients at once\n"
-            "• Check spelling (TheCocktailDB is case-insensitive but name must be exact)"
+            "• Check spelling (e.g. <code>rum</code>, <code>vodka</code>, <code>lime juice</code>)\n"
+            "• Some combos simply have no cocktail in the database"
         )
     lines = [f"🔍 Cocktails you can make with <b>{ing_str}</b>:\n"]
     for i, c in enumerate(cocktails[:10], 1):

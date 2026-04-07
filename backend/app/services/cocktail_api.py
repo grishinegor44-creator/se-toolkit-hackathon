@@ -32,10 +32,30 @@ class CocktailAPIService:
         drinks = data.get("drinks")
         return drinks if isinstance(drinks, list) else []
 
-    async def search_by_ingredient(self, ingredient: str) -> list[dict[str, Any]]:
-        """Search cocktails that contain a given ingredient. Returns slim dicts."""
+    async def resolve_ingredient_name(self, ingredient: str) -> str:
+        """
+        Resolve a user-supplied ingredient string to its canonical
+        TheCocktailDB name via the ingredient search endpoint.
+        E.g. "tonic" → "Tonic Water", "gin" → "Gin".
+        Falls back to the original string if nothing is found.
+        """
         client = await self._get_client()
-        resp = await client.get(f"{self.base_url}/filter.php", params={"i": ingredient})
+        resp = await client.get(f"{self.base_url}/search.php", params={"i": ingredient})
+        resp.raise_for_status()
+        data = resp.json()
+        ingredients = data.get("ingredients")
+        if isinstance(ingredients, list) and ingredients:
+            return ingredients[0].get("strIngredient", ingredient)
+        return ingredient
+
+    async def search_by_ingredient(self, ingredient: str) -> list[dict[str, Any]]:
+        """Search cocktails that contain a given ingredient.
+        Automatically resolves partial names to canonical TheCocktailDB names.
+        Returns slim dicts.
+        """
+        canonical = await self.resolve_ingredient_name(ingredient)
+        client = await self._get_client()
+        resp = await client.get(f"{self.base_url}/filter.php", params={"i": canonical})
         resp.raise_for_status()
         data = resp.json()
         # TheCocktailDB returns {"drinks": "None"} (string!) when nothing found
