@@ -23,8 +23,20 @@ _llm = LLMClient()
 @router.message(StateFilter(None))
 async def handle_text(message: Message) -> None:
     text = (message.text or "").strip()
-    if not text or text.startswith("/"):
-        return  # Let command router handle slash commands
+    if not text:
+        return
+
+    # Explicitly handle /random here as a safety net:
+    # in aiogram 3 the command router may not fire if message is
+    # already consumed by this StateFilter(None) handler.
+    if text.lower().startswith("/random"):
+        from bot.handlers.commands import _handle_random
+        await _handle_random(message)
+        return
+
+    # All other slash commands are handled by commands_router
+    if text.startswith("/"):
+        return
 
     # 1. Try LLM intent detection
     parsed = None

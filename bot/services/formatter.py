@@ -63,7 +63,7 @@ def format_search_results_by_name(
         return format_cocktail_full(exact)
     # Multiple results, no exact match — show list
     lines = [f'Found {len(cocktails)} cocktails matching "<b>{query}</b>":\n']
-    for i, c in enumerate(cocktails[:10], 1):
+    for i, c in enumerate(cocktails[:25], 1):
         lines.append(format_cocktail_short(c, i))
     lines.append("\nSend the exact cocktail name to get the full recipe.")
     return "\n".join(lines)

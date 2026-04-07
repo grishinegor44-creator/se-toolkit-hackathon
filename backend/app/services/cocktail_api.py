@@ -1,5 +1,6 @@
 """Client for TheCocktailDB public API (free tier, no key needed)."""
 
+import asyncio
 import json
 import httpx
 from typing import Any
@@ -174,9 +175,11 @@ class CocktailAPIService:
         else:
             common_ids = set()
 
+        MAX_RESULTS = 25
+
         candidate_ids: list[str]
         if common_ids:
-            candidate_ids = list(common_ids)[:10]
+            candidate_ids = list(common_ids)[:MAX_RESULTS]
         else:
             # Partial match: score each cocktail by ingredient hit count
             score: dict[str, int] = {}
@@ -185,12 +188,11 @@ class CocktailAPIService:
                     score[cid] = score.get(cid, 0) + 1
             if not score:
                 return []
-            candidate_ids = sorted(score, key=lambda k: score[k], reverse=True)[:10]
+            candidate_ids = sorted(score, key=lambda k: score[k], reverse=True)[:MAX_RESULTS]
 
-        # Fetch full cocktail details
-        results: list[dict[str, Any]] = []
-        for cid in candidate_ids:
-            full = await self.lookup_by_id(cid)
-            if full:
-                results.append(self.to_normalized(full))
-        return results
+        # Fetch full cocktail details IN PARALLEL
+        raw = await asyncio.gather(
+            *[self.lookup_by_id(cid) for cid in candidate_ids],
+            return_exceptions=False,
+        )
+        return [self.to_normalized(drink) for drink in raw if drink is not None]
