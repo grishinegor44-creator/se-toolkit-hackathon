@@ -6,8 +6,9 @@
 
 ## Demo
 
-> **Screenshots:** Add screenshots of the bot in action here after your first demo run.
-> Suggested filenames: `docs/screenshots/start.png`, `docs/screenshots/by_name.png`, `docs/screenshots/by_ingredients.png`
+| /start | /name Mojito | /ingredients vodka, lime |
+|--------|-------------|--------------------------|
+| ![start](docs/screenshots/start.jpg) | ![by_name](docs/screenshots/by_name.jpg) | ![by_ingredients](docs/screenshots/by_ingredients.jpg) |
 
 ---
 
