@@ -41,6 +41,7 @@ async def handle_text(message: Message) -> None:
                 await _handle_by_ingredients(message, parsed_ings)
                 return
             if intent == "random":
+                from bot.handlers.commands import _handle_random
                 await _handle_random(message)
                 return
             if intent == "history":
@@ -63,6 +64,7 @@ async def handle_text(message: Message) -> None:
     elif p.intent == "by_ingredients" and p.ingredients:
         await _handle_by_ingredients(message, p.ingredients)
     elif p.intent == "random":
+        from bot.handlers.commands import _handle_random
         await _handle_random(message)
     elif p.intent == "history":
         from bot.handlers.commands import cmd_history

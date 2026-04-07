@@ -6,6 +6,30 @@ from typing import Any
 
 from app.settings import settings
 
+# Common user-supplied aliases → canonical TheCocktailDB ingredient names
+_INGREDIENT_ALIASES: dict[str, str] = {
+    "cola":        "Coca-Cola",
+    "coke":        "Coca-Cola",
+    "coca cola":   "Coca-Cola",
+    "tonic":       "Tonic Water",
+    "lime":        "Lime juice",
+    "lemon":       "Lemon juice",
+    "oj":          "Orange juice",
+    "orange":      "Orange juice",
+    "cranberry":   "Cranberry juice",
+    "pineapple":   "Pineapple juice",
+    "grapefruit":  "Grapefruit juice",
+    "milk":        "Cream",
+    "simple syrup":"Sugar syrup",
+    "soda":        "Club soda",
+    "club soda":   "Club soda",
+    "whiskey":     "Blended whiskey",
+    "whisky":      "Blended whiskey",
+    "bourbon":     "Bourbon",
+    "scotch":      "Scotch",
+    "rum":         "Light rum",
+}
+
 
 class CocktailAPIService:
     """Thin async wrapper around TheCocktailDB v1 API."""
@@ -35,10 +59,14 @@ class CocktailAPIService:
     async def resolve_ingredient_name(self, ingredient: str) -> str:
         """
         Resolve a user-supplied ingredient string to its canonical
-        TheCocktailDB name via the ingredient search endpoint.
-        E.g. "tonic" → "Tonic Water", "gin" → "Gin".
-        Falls back to the original string if nothing is found.
+        TheCocktailDB name.
+        1. Check built-in alias table (fast, no network call).
+        2. Fall back to TheCocktailDB ingredient search endpoint.
+        3. Return original string if nothing found.
         """
+        lower = ingredient.strip().lower()
+        if lower in _INGREDIENT_ALIASES:
+            return _INGREDIENT_ALIASES[lower]
         client = await self._get_client()
         resp = await client.get(f"{self.base_url}/search.php", params={"i": ingredient})
         resp.raise_for_status()
@@ -49,13 +77,13 @@ class CocktailAPIService:
         return ingredient
 
     async def search_by_ingredient(self, ingredient: str) -> list[dict[str, Any]]:
-        """Search cocktails that contain a given ingredient.
-        Automatically resolves partial names to canonical TheCocktailDB names.
-        Returns slim dicts.
+        """Filter cocktails by a canonical ingredient name via filter.php.
+        NOTE: caller is responsible for resolving the ingredient name first
+        (via resolve_ingredient_name). This method is a pure filter call.
+        Returns slim dicts with at least {idDrink}.
         """
-        canonical = await self.resolve_ingredient_name(ingredient)
         client = await self._get_client()
-        resp = await client.get(f"{self.base_url}/filter.php", params={"i": canonical})
+        resp = await client.get(f"{self.base_url}/filter.php", params={"i": ingredient})
         resp.raise_for_status()
         data = resp.json()
         # TheCocktailDB returns {"drinks": "None"} (string!) when nothing found
@@ -116,35 +144,53 @@ class CocktailAPIService:
         self, ingredients: list[str]
     ) -> list[dict[str, Any]]:
         """
-        Find cocktails matching ALL provided ingredients.
-        Strategy: get candidate IDs for each ingredient, intersect sets,
-        then fetch full details for up to 10 matched cocktails.
+        Find cocktails matching the provided ingredients.
+        Strategy:
+          1. Resolve each ingredient to its canonical TheCocktailDB name.
+          2. Try strict AND-intersection of all ingredients.
+          3. If no strict match, fall back to partial match:
+             score each cocktail by how many ingredients it contains,
+             return top results sorted by score (descending).
         """
         if not ingredients:
             return []
 
-        # Fetch candidates per ingredient
-        sets: list[set[str]] = []
+        # Resolve canonical names first
+        canonical: list[str] = []
         for ing in ingredients:
-            drinks = await self.search_by_ingredient(ing.strip())
-            if not drinks:
-                return []  # no match at all
-            ids = {d["idDrink"] for d in drinks}
-            sets.append(ids)
+            canonical.append(await self.resolve_ingredient_name(ing.strip()))
 
-        # Intersect
-        common_ids = sets[0]
-        for s in sets[1:]:
-            common_ids = common_ids & s
+        # Fetch candidate ID sets per ingredient
+        id_sets: list[set[str]] = []
+        for ing in canonical:
+            drinks = await self.search_by_ingredient(ing)
+            id_sets.append({d["idDrink"] for d in drinks} if drinks else set())
 
-        if not common_ids:
-            return []  # No cocktail contains all the given ingredients simultaneously
+        # Strict intersection
+        if id_sets:
+            common_ids = id_sets[0].copy()
+            for s in id_sets[1:]:
+                common_ids &= s
+        else:
+            common_ids = set()
 
-        # Fetch full details (limit to 10 to avoid flooding)
-        results = []
-        for cid in list(common_ids)[:10]:
+        candidate_ids: list[str]
+        if common_ids:
+            candidate_ids = list(common_ids)[:10]
+        else:
+            # Partial match: score each cocktail by ingredient hit count
+            score: dict[str, int] = {}
+            for id_set in id_sets:
+                for cid in id_set:
+                    score[cid] = score.get(cid, 0) + 1
+            if not score:
+                return []
+            candidate_ids = sorted(score, key=lambda k: score[k], reverse=True)[:10]
+
+        # Fetch full cocktail details
+        results: list[dict[str, Any]] = []
+        for cid in candidate_ids:
             full = await self.lookup_by_id(cid)
             if full:
                 results.append(self.to_normalized(full))
-
         return results

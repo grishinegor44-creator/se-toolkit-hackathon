@@ -80,12 +80,39 @@ class LLMClient:
                     {"role": "system", "content": SYSTEM_PROMPT},
                     {"role": "user", "content": user_message},
                 ],
-                max_tokens=150,
+                max_tokens=200,
                 temperature=0.0,
             )
             raw = response.choices[0].message.content or ""
-            raw = raw.strip().lstrip("```json").lstrip("```").rstrip("```").strip()
-            return json.loads(raw)
+            return self._extract_json(raw)
         except Exception as e:
-            logger.warning("LLM parse_intent failed: %s — falling back to deterministic", e)
+            logger.warning("LLM request failed: %s — falling back to deterministic", e)
             return None
+
+    @staticmethod
+    def _extract_json(raw: str) -> dict | None:
+        """Robustly extract a JSON object from a possibly verbose model response."""
+        import re
+        raw = raw.strip()
+        if not raw:
+            return None
+        # Strip markdown code fences
+        raw = re.sub(r"```(?:json)?", "", raw).strip()
+        # Try parsing the whole thing first
+        try:
+            result = json.loads(raw)
+            if isinstance(result, dict) and "intent" in result:
+                return result
+        except json.JSONDecodeError:
+            pass
+        # Find the first {...} block (handles verbose model preamble)
+        match = re.search(r"\{[^{}]*\}", raw, re.DOTALL)
+        if match:
+            try:
+                result = json.loads(match.group())
+                if isinstance(result, dict) and "intent" in result:
+                    return result
+            except json.JSONDecodeError:
+                pass
+        logger.warning("LLM returned unparseable content: %r", raw[:120])
+        return None

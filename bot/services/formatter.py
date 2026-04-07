@@ -49,13 +49,23 @@ def format_search_results_by_name(
     cocktails: list[dict[str, Any]], query: str
 ) -> str:
     if not cocktails:
-        return f'❌ No cocktails found matching "<b>{query}</b>".\nTry a different name or use /ingredients to search by what you have.'
+        return (
+            f'❌ No cocktails found matching "<b>{query}</b>".\n'
+            "Try a different name or use /ingredients to search by what you have."
+        )
     if len(cocktails) == 1:
         return format_cocktail_full(cocktails[0])
+    # Exact match — show full recipe immediately
+    exact = next(
+        (c for c in cocktails if c["name"].lower() == query.lower()), None
+    )
+    if exact:
+        return format_cocktail_full(exact)
+    # Multiple results, no exact match — show list
     lines = [f'Found {len(cocktails)} cocktails matching "<b>{query}</b>":\n']
     for i, c in enumerate(cocktails[:10], 1):
         lines.append(format_cocktail_short(c, i))
-    lines.append("\nSend a more specific name to get the full recipe.")
+    lines.append("\nSend the exact cocktail name to get the full recipe.")
     return "\n".join(lines)
 
 

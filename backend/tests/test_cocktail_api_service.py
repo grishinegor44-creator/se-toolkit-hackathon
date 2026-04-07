@@ -98,24 +98,19 @@ class TestResolveIngredientName:
 class TestFindByMultipleIngredients:
     @respx.mock
     async def test_intersection(self, service: CocktailAPIService) -> None:
-        # Resolve calls
+        # "vodka" not in alias table → resolve via API → "Vodka"
+        # "lime" IS in alias table → "Lime juice" (no API call needed)
         respx.get(f"{BASE}/search.php", params={"i": "vodka"}).mock(
             return_value=httpx.Response(200, json={"ingredients": [{"strIngredient": "Vodka"}]})
         )
-        respx.get(f"{BASE}/search.php", params={"i": "lime"}).mock(
-            return_value=httpx.Response(200, json={"ingredients": [{"strIngredient": "Lime juice"}]})
-        )
-        # Filter calls with resolved names
         respx.get(f"{BASE}/filter.php", params={"i": "Vodka"}).mock(
             return_value=httpx.Response(
-                200,
-                json={"drinks": [{"idDrink": "11003"}, {"idDrink": "11007"}]},
+                200, json={"drinks": [{"idDrink": "11003"}, {"idDrink": "11007"}]}
             )
         )
         respx.get(f"{BASE}/filter.php", params={"i": "Lime juice"}).mock(
             return_value=httpx.Response(
-                200,
-                json={"drinks": [{"idDrink": "11007"}, {"idDrink": "99999"}]},
+                200, json={"drinks": [{"idDrink": "11007"}, {"idDrink": "99999"}]}
             )
         )
         respx.get(f"{BASE}/lookup.php", params={"i": "11007"}).mock(
@@ -126,21 +121,46 @@ class TestFindByMultipleIngredients:
         assert result[0]["name"] == "Margarita"
 
     @respx.mock
-    async def test_no_common(self, service: CocktailAPIService) -> None:
+    async def test_no_common_partial_match(self, service: CocktailAPIService) -> None:
+        """When no strict intersection, partial match returns results scored by hits.
+        'milk' is in the alias table -> 'Cream', no API resolve call needed.
+        """
+        # 'vodka' not in alias table -> API resolve
         respx.get(f"{BASE}/search.php", params={"i": "vodka"}).mock(
             return_value=httpx.Response(200, json={"ingredients": [{"strIngredient": "Vodka"}]})
-        )
-        respx.get(f"{BASE}/search.php", params={"i": "milk"}).mock(
-            return_value=httpx.Response(200, json={"ingredients": [{"strIngredient": "Milk"}]})
         )
         respx.get(f"{BASE}/filter.php", params={"i": "Vodka"}).mock(
             return_value=httpx.Response(200, json={"drinks": [{"idDrink": "111"}]})
         )
-        respx.get(f"{BASE}/filter.php", params={"i": "Milk"}).mock(
+        # 'milk' -> alias 'Cream', no search.php call
+        respx.get(f"{BASE}/filter.php", params={"i": "Cream"}).mock(
             return_value=httpx.Response(200, json={"drinks": [{"idDrink": "222"}]})
         )
+        respx.get(f"{BASE}/lookup.php", params={"i": "111"}).mock(
+            return_value=httpx.Response(200, json={"drinks": [SAMPLE_DRINK]})
+        )
+        respx.get(f"{BASE}/lookup.php", params={"i": "222"}).mock(
+            return_value=httpx.Response(200, json={"drinks": [{**SAMPLE_DRINK, "idDrink": "222", "strDrink": "Milky Way"}]})
+        )
         result = await service.find_by_multiple_ingredients(["vodka", "milk"])
-        assert result == []
+        # Partial match should return results (both score 1)
+        assert len(result) == 2
+
+    @respx.mock
+    async def test_alias_cola(self, service: CocktailAPIService) -> None:
+        """'cola' is resolved via alias to 'Coca-Cola' without API call."""
+        # No search.php call expected for "cola" (alias table)
+        respx.get(f"{BASE}/filter.php", params={"i": "Coca-Cola"}).mock(
+            return_value=httpx.Response(200, json={"drinks": [{"idDrink": "11118"}]})
+        )
+        respx.get(f"{BASE}/filter.php", params={"i": "Light rum"}).mock(
+            return_value=httpx.Response(200, json={"drinks": [{"idDrink": "11118"}, {"idDrink": "99"}]})
+        )
+        respx.get(f"{BASE}/lookup.php", params={"i": "11118"}).mock(
+            return_value=httpx.Response(200, json={"drinks": [SAMPLE_DRINK]})
+        )
+        result = await service.find_by_multiple_ingredients(["rum", "cola"])
+        assert len(result) == 1  # strict intersection = {11118}
 
     @respx.mock
     async def test_none_string_response(self, service: CocktailAPIService) -> None:
