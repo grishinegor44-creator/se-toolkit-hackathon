@@ -6,7 +6,7 @@
 
 ## Demo
 
-| /start | /name Mojito | /ingredients vodka, lime |
+| /start | /name | /ingredients |
 |--------|-------------|--------------------------|
 | ![start](docs/screenshots/start.jpg) | ![by_name](docs/screenshots/by_name.jpg) | ![by_ingredients](docs/screenshots/by_ingredients.jpg) |
 
