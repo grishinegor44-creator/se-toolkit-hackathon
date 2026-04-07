@@ -14,6 +14,7 @@ class Settings(BaseSettings):
 
     # External API
     cocktaildb_base_url: str = "https://www.thecocktaildb.com/api/json/v1/1"
+    cocktaildb_rate_limit_ms: int = 1000  # Minimum ms between requests
 
     # LLM (optional)
     llm_enabled: bool = False

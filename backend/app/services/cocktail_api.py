@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import time
 import httpx
 from typing import Any
 
@@ -38,11 +39,48 @@ class CocktailAPIService:
     def __init__(self) -> None:
         self.base_url = settings.cocktaildb_base_url
         self._client: httpx.AsyncClient | None = None
+        self._last_request_time: float = 0
+        self._min_request_interval = settings.cocktaildb_rate_limit_ms / 1000.0  # Convert ms to seconds
 
     async def _get_client(self) -> httpx.AsyncClient:
         if self._client is None or self._client.is_closed:
             self._client = httpx.AsyncClient(timeout=10.0)
         return self._client
+
+    async def _throttle_request(self) -> None:
+        """Ensure we don't exceed rate limits by adding delays between requests."""
+        now = time.monotonic()
+        elapsed = now - self._last_request_time
+        if elapsed < self._min_request_interval:
+            await asyncio.sleep(self._min_request_interval - elapsed)
+        self._last_request_time = time.monotonic()
+
+    async def _make_request_with_retry(
+        self, url: str, params: dict[str, Any] | None = None
+    ) -> httpx.Response:
+        """Make HTTP request with exponential backoff on 429 errors."""
+        max_retries = 3
+        base_delay = 2.0
+
+        for attempt in range(max_retries + 1):
+            await self._throttle_request()
+            client = await self._get_client()
+            resp = await client.get(url, params=params)
+
+            if resp.status_code != 429:
+                resp.raise_for_status()
+                return resp
+
+            # Rate limited - wait with exponential backoff
+            if attempt < max_retries:
+                delay = base_delay * (2 ** attempt)
+                await asyncio.sleep(delay)
+            else:
+                resp.raise_for_status()  # Raise on final attempt
+
+        # Should never reach here, but just in case
+        resp.raise_for_status()
+        return resp
 
     async def close(self) -> None:
         if self._client and not self._client.is_closed:
@@ -50,9 +88,9 @@ class CocktailAPIService:
 
     async def search_by_name(self, name: str) -> list[dict[str, Any]]:
         """Search cocktails by name. Returns list of cocktail dicts."""
-        client = await self._get_client()
-        resp = await client.get(f"{self.base_url}/search.php", params={"s": name})
-        resp.raise_for_status()
+        resp = await self._make_request_with_retry(
+            f"{self.base_url}/search.php", params={"s": name}
+        )
         data = resp.json()
         drinks = data.get("drinks")
         return drinks if isinstance(drinks, list) else []
@@ -68,9 +106,9 @@ class CocktailAPIService:
         lower = ingredient.strip().lower()
         if lower in _INGREDIENT_ALIASES:
             return _INGREDIENT_ALIASES[lower]
-        client = await self._get_client()
-        resp = await client.get(f"{self.base_url}/search.php", params={"i": ingredient})
-        resp.raise_for_status()
+        resp = await self._make_request_with_retry(
+            f"{self.base_url}/search.php", params={"i": ingredient}
+        )
         data = resp.json()
         ingredients = data.get("ingredients")
         if isinstance(ingredients, list) and ingredients:
@@ -83,9 +121,9 @@ class CocktailAPIService:
         (via resolve_ingredient_name). This method is a pure filter call.
         Returns slim dicts with at least {idDrink}.
         """
-        client = await self._get_client()
-        resp = await client.get(f"{self.base_url}/filter.php", params={"i": ingredient})
-        resp.raise_for_status()
+        resp = await self._make_request_with_retry(
+            f"{self.base_url}/filter.php", params={"i": ingredient}
+        )
         data = resp.json()
         # TheCocktailDB returns {"drinks": "None"} (string!) when nothing found
         drinks = data.get("drinks")
@@ -93,9 +131,9 @@ class CocktailAPIService:
 
     async def lookup_by_id(self, cocktail_id: str) -> dict[str, Any] | None:
         """Fetch full cocktail details by its TheCocktailDB ID."""
-        client = await self._get_client()
-        resp = await client.get(f"{self.base_url}/lookup.php", params={"i": cocktail_id})
-        resp.raise_for_status()
+        resp = await self._make_request_with_retry(
+            f"{self.base_url}/lookup.php", params={"i": cocktail_id}
+        )
         data = resp.json()
         drinks = data.get("drinks") or []
         return drinks[0] if drinks else None
@@ -132,9 +170,7 @@ class CocktailAPIService:
 
     async def get_random(self) -> dict[str, Any] | None:
         """Fetch a completely random cocktail from TheCocktailDB."""
-        client = await self._get_client()
-        resp = await client.get(f"{self.base_url}/random.php")
-        resp.raise_for_status()
+        resp = await self._make_request_with_retry(f"{self.base_url}/random.php")
         data = resp.json()
         drinks = data.get("drinks")
         if isinstance(drinks, list) and drinks:

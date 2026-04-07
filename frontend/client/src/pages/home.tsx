@@ -18,7 +18,7 @@ export default function HomePage() {
   const [query, setQuery] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [searchType, setSearchType] = useState<"name" | "ingredients">("name");
-  const [isRandom, setIsRandom] = useState(false);
+  const [randomTrigger, setRandomTrigger] = useState(0);
   const [selectedCocktail, setSelectedCocktail] = useState<Cocktail | null>(
     null
   );
@@ -30,7 +30,7 @@ export default function HomePage() {
 
   const handleSearch = useCallback(() => {
     if (!query.trim()) return;
-    setIsRandom(false);
+    setRandomTrigger(0);
     const type = detectType(query);
     setSearchType(type);
     setSearchTerm(query.trim());
@@ -38,7 +38,7 @@ export default function HomePage() {
 
   const handleRandom = useCallback(() => {
     setSearchTerm("");
-    setIsRandom(true);
+    setRandomTrigger((v) => v + 1);
   }, []);
 
   // Search query
@@ -52,7 +52,7 @@ export default function HomePage() {
       searchType === "ingredients"
         ? searchByIngredients(searchTerm)
         : searchByName(searchTerm),
-    enabled: !!searchTerm && !isRandom,
+    enabled: !!searchTerm && randomTrigger === 0,
   });
 
   // Random query
@@ -61,21 +61,25 @@ export default function HomePage() {
     isLoading: randomLoading,
     error: randomError,
   } = useQuery({
-    queryKey: ["/random", isRandom ? Date.now() : null],
+    queryKey: ["/random", randomTrigger],
     queryFn: getRandomCocktail,
-    enabled: isRandom,
+    enabled: randomTrigger > 0,
+    retry: 1,
+    retryDelay: 3000,
+    staleTime: 0,
+    gcTime: 0,
   });
 
   const isLoading = searchLoading || randomLoading;
   const error = searchError || randomError;
 
-  const results: Cocktail[] = isRandom
+  const results: Cocktail[] = randomTrigger > 0
     ? randomResult
       ? [randomResult]
       : []
     : searchResults || [];
 
-  const hasSearched = !!searchTerm || isRandom;
+  const hasSearched = !!searchTerm || randomTrigger > 0;
 
   return (
     <div className="flex-1 overflow-auto">
