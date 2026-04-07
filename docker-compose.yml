@@ -44,7 +44,9 @@ services:
       context: ./bot
       dockerfile: Dockerfile
     container_name: cocktailbot-bot
-    restart: unless-stopped
+    # Use "no" so a bad token doesn't cause infinite restart spam.
+    # Change to "unless-stopped" once BOT_TOKEN is confirmed valid.
+    restart: "no"
     env_file:
       - .env
     environment:
