@@ -26,7 +26,10 @@ Schema:
 
 Rules:
 - "by_name": user asks about a specific cocktail recipe or wants to know how to make one.
-  Extract ONLY the cocktail name — strip noise like "how to do", "recipe for", "how to make", qualifiers like "standard", "classic".
+  Extract ONLY the cocktail name — strip noise like "how to do", "recipe for", "how to make",
+  qualifiers like "standard", "classic".
+  Normalize the name: add missing hyphens (B52 → B-52, 747 stays 747), fix common
+  abbreviations, keep letter-number patterns (Harvey Wallbanger, 7&7 → Seven and Seven).
 - "by_ingredients": user provides a list of ingredients or asks what can be made FROM them.
   Normalize ingredient names to standard English cocktail terms (e.g. "cola" → "Coca-Cola", "tonic" → "Tonic Water").
 - "random": user wants any/random/surprise cocktail.
