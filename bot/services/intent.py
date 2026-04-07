@@ -1,33 +1,65 @@
 """
-Deterministic intent detection — used when LLM is disabled.
-Classifies free-text messages without any external calls.
+Deterministic intent detection — used when LLM is disabled or fails.
+Handles free-text messages without any external calls.
 """
 
 import re
 from dataclasses import dataclass
 from typing import Literal
 
-IntentType = Literal["by_name", "by_ingredients", "favorites", "history", "help", "unknown"]
+IntentType = Literal["by_name", "by_ingredients", "random", "favorites", "history", "help", "unknown"]
 
-# Keywords that suggest an ingredient-based query
-_INGREDIENT_KEYWORDS = re.compile(
-    r"\b(make|mix|with|using|have|ingredients?|из|готовить|ингредиент)\b",
+# ── Noise prefix patterns ─────────────────────────────────────────────────────
+# Strips phrases like "how to do", "recipe for", "how to make a", etc.
+_NOISE_PREFIX = re.compile(
+    r"""(?ix)^
+    (?:
+        (?:how\s+(?:do\s+i\s+|to\s+)(?:make|do|prepare|mix|create|drink|get)\s+) |
+        (?:give\s+me\s+(?:a\s+|the\s+)?(?:recipe\s+(?:for\s+)?)?)          |
+        (?:recipe\s+(?:for\s+|of\s+)?)                                       |
+        (?:what\s+is\s+(?:a\s+|an\s+|the\s+)?)                              |
+        (?:tell\s+me\s+(?:about\s+)?(?:a\s+|an\s+)?)                        |
+        (?:show\s+me\s+(?:a\s+|the\s+)?)                                     |
+        (?:i\s+want\s+(?:to\s+(?:make\s+|drink\s+))?(?:a\s+|an\s+)?)       |
+        (?:make\s+(?:me\s+)?(?:a\s+|an\s+)?)                                |
+        (?:can\s+you\s+(?:make\s+)?(?:a\s+|an\s+)?)
+    )
+    """,
+    re.IGNORECASE | re.VERBOSE,
+)
+
+# Strips vague qualifiers before the cocktail name
+_QUALIFIER = re.compile(
+    r"\b(standard|standart|classic|traditional|perfect|simple|basic|regular|original|proper|good|nice)\s+",
     re.IGNORECASE,
 )
 
-# Keywords that suggest a name-based query
-_NAME_KEYWORDS = re.compile(
-    r"\b(recipe|рецепт|how to make|как приготовить|what is|что такое|details?)\b",
+# Detects "with/using/have/got <ingredients>" patterns
+_WITH_PATTERN = re.compile(
+    r"\b(?:with|using|have|got|i\s+have|do\s+with|make\s+with)\b\s*(.+?)(?:[?!.]|$)",
     re.IGNORECASE,
 )
 
-# Common cocktail ingredients to detect ingredient-style messages
-_COMMON_INGREDIENTS = {
+# Split-word separators inside ingredient lists
+_ING_SPLIT = re.compile(r"\band\b|\bor\b|,", re.IGNORECASE)
+
+# Random / surprise keywords
+_RANDOM_WORDS = frozenset({
+    "random", "surprise", "any", "whatever", "anything",
+    "случайный", "случайно", "любой", "удиви",
+})
+
+# Well-known cocktail ingredient words for fallback detection
+_COMMON_INGREDIENTS = frozenset({
     "vodka", "gin", "rum", "tequila", "whiskey", "whisky", "brandy", "beer",
     "wine", "champagne", "lime", "lemon", "juice", "soda", "water", "mint",
     "sugar", "salt", "ice", "cream", "milk", "triple sec", "vermouth",
     "bitters", "syrup", "ginger", "orange", "grenadine", "kahlua", "baileys",
-}
+    "cola", "coke", "tonic", "absinthe", "bourbon", "scotch", "prosecco",
+    "amaretto", "campari", "curacao", "schnapps", "mezcal", "sake",
+})
+
+_STOP_WORDS = frozenset({"a", "an", "the", "some", "any", "do", "make", "me", "i", "my"})
 
 
 @dataclass
@@ -39,53 +71,60 @@ class ParsedIntent:
 
 def detect_intent(text: str) -> ParsedIntent:
     """
-    Deterministic heuristic intent detection.
+    Detect user intent from free-text input.
 
-    Rules (in priority order):
-    1. Check for history/favorites keywords.
-    2. Check if the message looks like an ingredient list (comma-separated
-       or contains ingredient keywords).
-    3. Otherwise assume it's a cocktail name search.
+    Priority order:
+    1. History / favorites shortcuts
+    2. Random cocktail keywords
+    3. Comma-separated list → ingredients
+    4. "with/using/have X and Y" pattern → ingredients
+    5. Noise-prefix stripping → clean cocktail name
+    6. Known ingredient word fallback → ingredients
+    7. Default: treat whole text as cocktail name
     """
-    lower = text.strip().lower()
+    text = text.strip()
+    lower = text.lower()
 
-    # History / favorites shortcuts
-    if any(k in lower for k in ("history", "история", "/history")):
+    # 1. History / favorites
+    if any(k in lower for k in ("history", "история")):
         return ParsedIntent(intent="history")
-    if any(k in lower for k in ("favorite", "избранное", "fav", "/favorites")):
+    if any(k in lower for k in ("favorite", "избранное", "fav")):
         return ParsedIntent(intent="favorites")
 
-    # Comma-separated → almost certainly ingredients
+    # 2. Random cocktail
+    words = set(re.findall(r"\b\w+\b", lower))
+    if words & _RANDOM_WORDS:
+        return ParsedIntent(intent="random")
+
+    # 3. Comma-separated → ingredients
     if "," in text:
         parts = [p.strip() for p in text.split(",") if p.strip()]
         if len(parts) >= 2:
             return ParsedIntent(intent="by_ingredients", ingredients=parts)
 
-    # Check for ingredient keywords (but only if no name keyword matched)
-    if _INGREDIENT_KEYWORDS.search(text) and not _NAME_KEYWORDS.search(text):
-        # Try to strip keyword noise and extract ingredient list
-        cleaned = _INGREDIENT_KEYWORDS.sub("", text).strip()
-        # Remove common stop words
-        cleaned = re.sub(r"\b(i|can|what|do|me|a|the|and|or)\b", "", cleaned, flags=re.I)
-        parts = [p.strip() for p in re.split(r"[,\s]+", cleaned) if p.strip() and len(p) > 2]
+    # 4. "with/using/have X and Y" → ingredients
+    m = _WITH_PATTERN.search(text)
+    if m:
+        after = m.group(1).strip()
+        parts = [
+            p.strip()
+            for p in _ING_SPLIT.split(after)
+            if p.strip() and len(p.strip()) > 1 and p.strip().lower() not in _STOP_WORDS
+        ]
         if parts:
             return ParsedIntent(intent="by_ingredients", ingredients=parts)
 
-    # Check if any word is a known ingredient (only when no name keyword present)
-    if not _NAME_KEYWORDS.search(text):
-        words = re.findall(r"\b\w+\b", lower)
-        matched_ingredients = [w for w in words if w in _COMMON_INGREDIENTS]
-        if matched_ingredients:
-            return ParsedIntent(intent="by_ingredients", ingredients=matched_ingredients)
+    # 5. Strip noise prefix → clean cocktail name
+    cleaned = _NOISE_PREFIX.sub("", text).strip()
+    cleaned = re.sub(r"^(?:a|an|the)\s+", "", cleaned, flags=re.I).strip()
+    cleaned = _QUALIFIER.sub("", cleaned).strip()
+    if cleaned and cleaned.lower() != lower and len(cleaned) > 1:
+        return ParsedIntent(intent="by_name", name=cleaned)
 
-    # Name-based keyword or recipe request — check BEFORE ingredient fallback
-    if _NAME_KEYWORDS.search(text):
-        # Extract name after stripping keyword noise
-        cleaned = _NAME_KEYWORDS.sub("", text).strip()
-        # Remove filler words
-        cleaned = re.sub(r"\b(a|an|the|for|me|i|want|please)\b", "", cleaned, flags=re.I).strip()
-        name = cleaned if cleaned else text.strip()
-        return ParsedIntent(intent="by_name", name=name)
+    # 6. Known ingredient word fallback
+    matched = [w for w in words if w in _COMMON_INGREDIENTS]
+    if matched:
+        return ParsedIntent(intent="by_ingredients", ingredients=matched)
 
-    # Default: treat entire message as a cocktail name
-    return ParsedIntent(intent="by_name", name=text.strip())
+    # 7. Default: treat whole text as cocktail name
+    return ParsedIntent(intent="by_name", name=text)

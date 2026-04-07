@@ -24,6 +24,7 @@ HELP_TEXT = """🍹 <b>CocktailBot — your cocktail companion</b>
 /help  — this help text
 /name &lt;cocktail&gt; — search by cocktail name
 /ingredients &lt;list&gt; — search by comma-separated ingredients
+/random — get a random cocktail
 /history — your recent searches
 /favorites — your saved favorites
 /favorite &lt;cocktail name&gt; — add to favorites
@@ -31,12 +32,16 @@ HELP_TEXT = """🍹 <b>CocktailBot — your cocktail companion</b>
 <b>Or just send plain text!</b>
 • A cocktail name → full recipe
 • A list of ingredients (e.g. vodka, lime, mint) → matching cocktails
+• "surprise me" or "random" → random cocktail
+• "how to make a Mojito" → recipe
+• "what can I do with rum and cola" → ingredient search
 
 <b>Examples:</b>
 • <code>Margarita</code>
+• <code>how to do cosmopolitan</code>
 • <code>vodka, lime, mint</code>
-• <code>/name Old Fashioned</code>
-• <code>/ingredients gin, tonic</code>
+• <code>what can I do with rum and cola</code>
+• <code>/random</code>
 """
 
 
@@ -160,4 +165,20 @@ async def _handle_by_ingredients(message: Message, ingredients: list[str]) -> No
         await message.answer(text, parse_mode="HTML")
     except Exception as e:
         logger.error("Error searching by ingredients %s: %s", ingredients, e)
+        await message.answer("⚠️ Backend error. Make sure the backend is running.")
+
+
+async def _handle_random(message: Message) -> None:
+    user_id = message.from_user.id if message.from_user else None
+    try:
+        await message.answer("🎲 Getting a random cocktail…")
+        cocktail = await _backend.get_random(user_id=user_id)
+        if not cocktail:
+            await message.answer("⚠️ Could not fetch a random cocktail. Try again.")
+            return
+        from bot.services.formatter import format_cocktail_full
+        text = "🎲 <b>Random cocktail for you!</b>\n\n" + format_cocktail_full(cocktail)
+        await message.answer(text, parse_mode="HTML")
+    except Exception as e:
+        logger.error("Error fetching random cocktail: %s", e)
         await message.answer("⚠️ Backend error. Make sure the backend is running.")

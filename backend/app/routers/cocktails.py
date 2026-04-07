@@ -12,6 +12,20 @@ _api_svc = CocktailAPIService()
 _db_svc = CocktailDBService()
 
 
+@router.get("/random")
+async def get_random_cocktail(
+    user_id: int | None = Query(None, description="Telegram user ID for history"),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Return a completely random cocktail."""
+    cocktail = await _api_svc.get_random()
+    if not cocktail:
+        raise HTTPException(status_code=503, detail="Could not fetch a random cocktail")
+    await _db_svc.upsert_cocktail(db, cocktail)
+    await _db_svc.record_search(db, user_id, "random", "[random]", 1)
+    return cocktail
+
+
 @router.get("/by-name")
 async def get_cocktail_by_name(
     name: str = Query(..., description="Cocktail name to search for"),

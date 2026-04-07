@@ -101,6 +101,17 @@ class CocktailAPIService:
             "ingredients": ingredients,
         }
 
+    async def get_random(self) -> dict[str, Any] | None:
+        """Fetch a completely random cocktail from TheCocktailDB."""
+        client = await self._get_client()
+        resp = await client.get(f"{self.base_url}/random.php")
+        resp.raise_for_status()
+        data = resp.json()
+        drinks = data.get("drinks")
+        if isinstance(drinks, list) and drinks:
+            return self.to_normalized(drinks[0])
+        return None
+
     async def find_by_multiple_ingredients(
         self, ingredients: list[str]
     ) -> list[dict[str, Any]]:

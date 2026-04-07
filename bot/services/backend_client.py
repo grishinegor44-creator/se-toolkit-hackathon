@@ -75,6 +75,15 @@ class BackendClient:
         resp.raise_for_status()
         return resp.json()
 
+    async def get_random(self, user_id: int | None = None) -> dict[str, Any] | None:
+        client = await self._get()
+        params: dict[str, Any] = {}
+        if user_id:
+            params["user_id"] = user_id
+        resp = await client.get("/cocktails/random", params=params)
+        resp.raise_for_status()
+        return resp.json()
+
     async def health(self) -> bool:
         try:
             client = await self._get()
