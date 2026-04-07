@@ -43,10 +43,45 @@ async def get_random_cocktail(
     user_id: int | None = Query(None, description="Telegram user ID for history"),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
-    """Return a completely random cocktail."""
-    cocktail = await _api_svc.get_random()
+    """Return a completely random cocktail.
+    Falls back to a random cached cocktail from PostgreSQL if the external
+    API returns 429 Too Many Requests.
+    """
+    import httpx
+    from sqlalchemy import func, select
+    from app.models.cocktail import CachedCocktail
+    import json
+
+    cocktail = None
+    try:
+        cocktail = await _api_svc.get_random()
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code == 429:
+            # Rate-limited — fall back to a random cached cocktail from DB
+            result = await db.execute(
+                select(CachedCocktail).order_by(func.random()).limit(1)
+            )
+            row = result.scalar_one_or_none()
+            if row:
+                cocktail = {
+                    "id": row.cocktail_id,
+                    "name": row.name,
+                    "category": row.category,
+                    "alcoholic": row.alcoholic,
+                    "glass": row.glass,
+                    "instructions": row.instructions,
+                    "thumbnail": row.thumbnail_url,
+                    "ingredients": json.loads(row.ingredients_json or "[]"),
+                }
+        else:
+            raise
+
     if not cocktail:
-        raise HTTPException(status_code=503, detail="Could not fetch a random cocktail")
+        raise HTTPException(
+            status_code=503,
+            detail="Could not fetch a random cocktail. The external API is rate-limited and the local cache is empty. Search for a few cocktails first to populate the cache.",
+        )
+
     await _db_svc.upsert_cocktail(db, cocktail)
     await _db_svc.record_search(db, user_id, "random", "[random]", 1)
     return cocktail

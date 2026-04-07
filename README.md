@@ -32,11 +32,17 @@ CocktailBot is a Telegram bot backed by a FastAPI service and PostgreSQL databas
 │  Telegram User   │ ◄───────────────► │  Telegram Bot        │
 └──────────────────┘                   │  (aiogram 3.x)       │
                                         └──────────┬───────────┘
+                                                   │
+┌──────────────────┐       HTTP        ┌──────────▼───────────┐
+│  Browser User    │ ◄───────────────► │  React Frontend      │
+│  localhost:3000  │                   │  (Vite + shadcn/ui)  │
+└──────────────────┘                   └──────────┬───────────┘
                                                    │ HTTP REST
                                         ┌──────────▼───────────┐
                                         │  FastAPI Backend      │
                                         │  /cocktails/by-name   │
                                         │  /cocktails/by-ingr.  │
+                                        │  /cocktails/random    │
                                         │  /history             │
                                         │  /favorites           │
                                         └──────────┬────────────┘
@@ -52,6 +58,7 @@ CocktailBot is a Telegram bot backed by a FastAPI service and PostgreSQL databas
 **Services:**
 | Service | Technology | Port |
 |---------|-----------|------|
+| Frontend | React + Vite + Nginx | 3000 |
 | Bot | Python + aiogram 3.x | — |
 | Backend | Python + FastAPI | 8000 |
 | Database | PostgreSQL 16 | 5432 |
@@ -164,14 +171,19 @@ curl http://localhost:8000/health
 # Check backend API docs
 open http://localhost:8000/docs
 
+# Web frontend
+open http://localhost:3000
+
 # Check Docker logs
 docker compose logs -f backend
 docker compose logs -f bot
+docker compose logs -f frontend
 ```
 
-### 5. Use the bot
+### 5. Use the bot or web UI
 
-Open Telegram, find your bot (by the username you set with BotFather), and send `/start`.
+- **Telegram bot:** Open Telegram, find your bot (by the username you set with BotFather), and send `/start`.
+- **Web UI:** Open [http://localhost:3000](http://localhost:3000) in your browser. Same features as the bot: search by name, by ingredients, random cocktail, favorites, history.
 
 ### 6. Stop
 
@@ -291,7 +303,18 @@ se-toolkit-hackathon/
 │   ├── config.py             # Bot settings
 │   ├── Dockerfile
 │   └── pyproject.toml
-├── docker-compose.yml        # Orchestrates all three services
+├── frontend/                 # React web frontend
+│   ├── client/
+│   │   └── src/
+│   │       ├── components/   # CocktailCard, CocktailDetail, Sidebar
+│   │       ├── pages/        # Home (search), Favorites, History
+│   │       ├── lib/api.ts    # API client for FastAPI backend
+│   │       └── App.tsx       # Routing + layout
+│   ├── nginx.conf            # Nginx config for serving static build
+│   ├── Dockerfile            # Multi-stage: Node build → Nginx serve
+│   └── package.json
+├── docs/screenshots/         # Bot and UI screenshots
+├── docker-compose.yml        # Orchestrates all four services
 ├── .env.example              # Environment variable template
 ├── .gitignore
 ├── LICENSE
