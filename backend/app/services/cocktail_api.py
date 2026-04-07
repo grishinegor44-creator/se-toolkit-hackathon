@@ -29,7 +29,8 @@ class CocktailAPIService:
         resp = await client.get(f"{self.base_url}/search.php", params={"s": name})
         resp.raise_for_status()
         data = resp.json()
-        return data.get("drinks") or []
+        drinks = data.get("drinks")
+        return drinks if isinstance(drinks, list) else []
 
     async def search_by_ingredient(self, ingredient: str) -> list[dict[str, Any]]:
         """Search cocktails that contain a given ingredient. Returns slim dicts."""
@@ -37,7 +38,9 @@ class CocktailAPIService:
         resp = await client.get(f"{self.base_url}/filter.php", params={"i": ingredient})
         resp.raise_for_status()
         data = resp.json()
-        return data.get("drinks") or []
+        # TheCocktailDB returns {"drinks": "None"} (string!) when nothing found
+        drinks = data.get("drinks")
+        return drinks if isinstance(drinks, list) else []
 
     async def lookup_by_id(self, cocktail_id: str) -> dict[str, Any] | None:
         """Fetch full cocktail details by its TheCocktailDB ID."""
@@ -104,7 +107,7 @@ class CocktailAPIService:
             common_ids = common_ids & s
 
         if not common_ids:
-            return []
+            return []  # No cocktail contains all the given ingredients simultaneously
 
         # Fetch full details (limit to 10 to avoid flooding)
         results = []
