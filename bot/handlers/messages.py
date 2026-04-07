@@ -12,7 +12,7 @@ from aiogram.types import Message
 
 from bot.services.intent import detect_intent
 from bot.services.llm_client import LLMClient
-from bot.handlers.commands import _handle_by_name, _handle_by_ingredients
+from bot.handlers.commands import _handle_by_name, _handle_by_ingredients, _handle_add_favorite
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -75,6 +75,8 @@ async def handle_text(message: Message) -> None:
         await _handle_by_name(message, p.name)
     elif p.intent == "by_ingredients" and p.ingredients:
         await _handle_by_ingredients(message, p.ingredients)
+    elif p.intent == "add_favorite" and p.name:
+        await _handle_add_favorite(message, p.name)
     elif p.intent == "random":
         from bot.handlers.commands import _handle_random
         await _handle_random(message)

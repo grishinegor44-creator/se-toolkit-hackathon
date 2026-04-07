@@ -168,6 +168,42 @@ async def _handle_by_ingredients(message: Message, ingredients: list[str]) -> No
         await message.answer("⚠️ Backend error. Make sure the backend is running.")
 
 
+async def _handle_add_favorite(message: Message, cocktail_name: str) -> None:
+    """Add a cocktail to favorites by name (free-text flow)."""
+    if not message.from_user:
+        await message.answer("⚠️ Cannot identify your account.")
+        return
+    try:
+        results = await _backend.search_by_name(cocktail_name)
+        if not results:
+            await message.answer(
+                f'❌ No cocktail found matching "<b>{cocktail_name}</b>".\n'
+                "Check the spelling or try the exact name.",
+                parse_mode="HTML",
+            )
+            return
+        cocktail = next(
+            (c for c in results if c["name"].lower() == cocktail_name.lower()),
+            results[0],
+        )
+        result = await _backend.add_favorite(
+            message.from_user.id, cocktail["id"], cocktail["name"]
+        )
+        if result.get("status") == "already_exists":
+            await message.answer(
+                f'⭐ <b>{cocktail["name"]}</b> is already in your favorites.',
+                parse_mode="HTML",
+            )
+        else:
+            await message.answer(
+                f'⭐ Added <b>{cocktail["name"]}</b> to your favorites!',
+                parse_mode="HTML",
+            )
+    except Exception as e:
+        logger.error("Error adding favorite '%s': %s", cocktail_name, e)
+        await message.answer("⚠️ Backend error. Make sure the backend is running.")
+
+
 async def _handle_random(message: Message) -> None:
     user_id = message.from_user.id if message.from_user else None
     try:

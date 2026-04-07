@@ -43,6 +43,8 @@ Examples:
 "vodka, lime, mint"                → {"intent":"by_ingredients","name":null,"ingredients":["Vodka","Lime juice","Mint"]}
 "surprise me"                      → {"intent":"random","name":null,"ingredients":null}
 "random cocktail"                  → {"intent":"random","name":null,"ingredients":null}
+"add Brain Fart to my favorites"   → {"intent":"add_favorite","name":"Brain Fart","ingredients":null}
+"save Mojito to favorites"         → {"intent":"add_favorite","name":"Mojito","ingredients":null}
 "show my favorites"                → {"intent":"favorites","name":null,"ingredients":null}
 """
 

@@ -7,7 +7,7 @@ import re
 from dataclasses import dataclass
 from typing import Literal
 
-IntentType = Literal["by_name", "by_ingredients", "random", "favorites", "history", "help", "unknown"]
+IntentType = Literal["by_name", "by_ingredients", "random", "add_favorite", "favorites", "history", "help", "unknown"]
 
 # ── Noise prefix patterns ─────────────────────────────────────────────────────
 # Strips phrases like "how to do", "recipe for", "how to make a", etc.
@@ -35,6 +35,12 @@ _QUALIFIER = re.compile(
 )
 
 # Detects "with/using/have/got <ingredients>" patterns
+# Detects "add/save X to (my) favorites"
+_ADD_FAVORITE_PATTERN = re.compile(
+    r"\b(?:add|save|mark|bookmark|store)\b\s*(.+?)\s*\bto\s+(?:my\s+)?favorites?\b",
+    re.IGNORECASE,
+)
+
 _WITH_PATTERN = re.compile(
     r"\b(?:with|using|have|got|i\s+have|do\s+with|make\s+with)\b\s*(.+?)(?:[?!.]|$)",
     re.IGNORECASE,
@@ -85,7 +91,14 @@ def detect_intent(text: str) -> ParsedIntent:
     text = text.strip()
     lower = text.lower()
 
-    # 1. History / favorites
+    # 1a. Add to favorites (must come before general favorites check)
+    m_fav = _ADD_FAVORITE_PATTERN.search(text)
+    if m_fav:
+        name = m_fav.group(1).strip()
+        if name:
+            return ParsedIntent(intent="add_favorite", name=name)
+
+    # 1b. History / show favorites
     if any(k in lower for k in ("history", "история")):
         return ParsedIntent(intent="history")
     if any(k in lower for k in ("favorite", "избранное", "fav")):
