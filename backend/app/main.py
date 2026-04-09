@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import init_db
-from app.routers import cocktails_router, history_router, favorites_router
+from app.routers import cocktails_router, history_router, favorites_router, users_router
 from app.settings import settings
 
 logging.basicConfig(level=logging.DEBUG if settings.debug else logging.INFO)
@@ -39,6 +39,7 @@ app.add_middleware(
 app.include_router(cocktails_router)
 app.include_router(history_router)
 app.include_router(favorites_router)
+app.include_router(users_router)
 
 
 @app.get("/health", tags=["meta"])

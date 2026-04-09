@@ -18,6 +18,8 @@ RUN uv pip install --system \
     "pydantic>=2.0.0" \
     "pydantic-settings>=2.0.0" \
     "python-dotenv>=1.0.0" \
+    "passlib[bcrypt]==1.7.4" \
+    "bcrypt==4.0.1" \
     "pytest>=8.0.0" \
     "pytest-asyncio>=0.23.0" \
     "pytest-mock>=3.12.0" \

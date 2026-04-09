@@ -53,6 +53,24 @@ services:
       backend:
         condition: service_healthy
 
+  # ── pgAdmin (Database Management) ────────────────────────────────────────
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: cocktailbot-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@local.dev}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: 'False'
+    ports:
+      - "5050:80"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+
   # ── Web Frontend ─────────────────────────────────────────────────────────
   frontend:
     build:
@@ -68,3 +86,4 @@ services:
 
 volumes:
   postgres_data:
+  pgadmin_data:

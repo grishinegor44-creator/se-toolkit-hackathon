@@ -13,6 +13,7 @@ import type { Cocktail } from "@shared/schema";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { addFavorite, removeFavorite, getFavorites } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/lib/auth-context";
 
 interface CocktailDetailProps {
   cocktail: Cocktail | null;
@@ -27,10 +28,12 @@ export default function CocktailDetail({
 }: CocktailDetailProps) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { isAuthenticated } = useAuth();
 
   const { data: favorites = [] } = useQuery({
     queryKey: ["/favorites"],
     queryFn: getFavorites,
+    enabled: isAuthenticated,
   });
 
   const isFavorite = cocktail
@@ -69,6 +72,23 @@ export default function CocktailDetail({
 
   if (!cocktail) return null;
 
+  const handleFavoriteClick = () => {
+    if (!isAuthenticated) {
+      toast({
+        title: "Authentication required",
+        description: "Please register or login to save favorites",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (isFavorite) {
+      removeMutation.mutate();
+    } else {
+      addMutation.mutate();
+    }
+  };
+
   return (
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
       <SheetContent
@@ -88,7 +108,7 @@ export default function CocktailDetail({
               <img
                 src={cocktail.thumbnail}
                 alt={cocktail.name}
-                className="w-full h-full object-cover"
+                className="w-full h-full object-contain bg-muted"
                 data-testid="img-cocktail-detail"
                 onError={(e) => {
                   (e.target as HTMLImageElement).style.display = "none";
@@ -163,18 +183,24 @@ export default function CocktailDetail({
 
             {/* Favorite button */}
             <Button
-              onClick={() =>
-                isFavorite ? removeMutation.mutate() : addMutation.mutate()
-              }
+              onClick={handleFavoriteClick}
               variant={isFavorite ? "secondary" : "default"}
               className="w-full"
-              disabled={addMutation.isPending || removeMutation.isPending}
+              disabled={
+                addMutation.isPending ||
+                removeMutation.isPending ||
+                !isAuthenticated
+              }
               data-testid="button-favorite-toggle"
             >
               <Star
                 className={`w-4 h-4 mr-2 ${isFavorite ? "fill-current" : ""}`}
               />
-              {isFavorite ? "Saved" : "Add to Favorites"}
+              {!isAuthenticated
+                ? "Login to save"
+                : isFavorite
+                  ? "Saved"
+                  : "Add to Favorites"}
             </Button>
           </div>
         </ScrollArea>

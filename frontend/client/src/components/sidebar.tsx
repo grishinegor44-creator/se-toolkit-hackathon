@@ -1,5 +1,6 @@
 import { Link, useLocation } from "wouter";
-import { Search, Star, Clock, Sun, Moon, Wine } from "lucide-react";
+import { Search, Star, Clock, Sun, Moon, Wine, LogIn, LogOut, UserPlus } from "lucide-react";
+import { useAuth } from "@/lib/auth-context";
 import { cn } from "@/lib/utils";
 
 interface AppSidebarProps {
@@ -15,6 +16,12 @@ const navItems = [
 
 export default function AppSidebar({ isDark, onToggleTheme }: AppSidebarProps) {
   const [location] = useLocation();
+  const { user, isAuthenticated, logout } = useAuth();
+
+  const handleLogout = () => {
+    logout();
+    window.location.hash = "/";
+  };
 
   return (
     <aside
@@ -58,6 +65,47 @@ export default function AppSidebar({ isDark, onToggleTheme }: AppSidebarProps) {
           );
         })}
       </nav>
+
+      {/* Auth section */}
+      <div className="p-2 border-t border-border">
+        {isAuthenticated ? (
+          <div className="space-y-2">
+            <div className="hidden md:block px-3 py-2 text-xs text-muted-foreground">
+              Signed in as <span className="text-foreground font-medium">{user?.username}</span>
+            </div>
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-3 px-3 py-2.5 rounded-lg w-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors duration-150 text-sm"
+              data-testid="button-logout"
+              aria-label="Logout"
+            >
+              <LogOut className="w-4 h-4 shrink-0" />
+              <span className="hidden md:block">Logout</span>
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-1">
+            <Link href="/login">
+              <div
+                className="flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-colors duration-150 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+                data-testid="nav-login"
+              >
+                <LogIn className="w-4 h-4 shrink-0" />
+                <span className="hidden md:block">Sign in</span>
+              </div>
+            </Link>
+            <Link href="/register">
+              <div
+                className="flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-colors duration-150 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+                data-testid="nav-register"
+              >
+                <UserPlus className="w-4 h-4 shrink-0" />
+                <span className="hidden md:block">Register</span>
+              </div>
+            </Link>
+          </div>
+        )}
+      </div>
 
       {/* Theme toggle */}
       <div className="p-2 border-t border-border">

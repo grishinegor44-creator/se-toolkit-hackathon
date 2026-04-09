@@ -31,3 +31,21 @@ export interface Favorite {
   cocktail_id: string;
   cocktail_name: string;
 }
+
+export interface User {
+  id: number;
+  username: string;
+  email: string;
+  created_at?: string;
+}
+
+export interface InsertUser {
+  username: string;
+  email: string;
+  password: string;
+}
+
+export interface LoginCredentials {
+  username: string;
+  password: string;
+}

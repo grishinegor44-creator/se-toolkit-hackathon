@@ -5,10 +5,13 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { AuthProvider } from "@/lib/auth-context";
 import AppSidebar from "@/components/sidebar";
 import HomePage from "@/pages/home";
 import FavoritesPage from "@/pages/favorites";
 import HistoryPage from "@/pages/history";
+import LoginPage from "@/pages/login";
+import RegisterPage from "@/pages/register";
 import NotFound from "@/pages/not-found";
 
 function AppRouter() {
@@ -17,6 +20,8 @@ function AppRouter() {
       <Route path="/" component={HomePage} />
       <Route path="/favorites" component={FavoritesPage} />
       <Route path="/history" component={HistoryPage} />
+      <Route path="/login" component={LoginPage} />
+      <Route path="/register" component={RegisterPage} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -45,17 +50,19 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
-        <Router hook={useHashLocation}>
-          <div className="flex h-screen bg-background overflow-hidden">
-            <AppSidebar
-              isDark={isDark}
-              onToggleTheme={() => setIsDark((d) => !d)}
-            />
-            <main className="flex-1 flex flex-col overflow-hidden">
-              <AppRouter />
-            </main>
-          </div>
-        </Router>
+        <AuthProvider>
+          <Router hook={useHashLocation}>
+            <div className="flex h-screen bg-background overflow-hidden">
+              <AppSidebar
+                isDark={isDark}
+                onToggleTheme={() => setIsDark((d) => !d)}
+              />
+              <main className="flex-1 flex flex-col overflow-hidden">
+                <AppRouter />
+              </main>
+            </div>
+          </Router>
+        </AuthProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );

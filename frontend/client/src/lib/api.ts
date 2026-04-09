@@ -2,8 +2,28 @@ import type { Cocktail, HistoryEntry, Favorite } from "@shared/schema";
 
 const API_BASE = "http://localhost:8000";
 
-// Simple user ID stored in localStorage
+// Get authenticated user ID
+const getUserId = (): number | null => {
+  const userStr = localStorage.getItem("user");
+  if (userStr) {
+    try {
+      const user = JSON.parse(userStr);
+      return user.id;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+};
+
+// Fallback to anonymous user ID if not authenticated
 const getUid = (): string => {
+  const userId = getUserId();
+  if (userId !== null) {
+    return String(userId);
+  }
+  
+  // Fallback to anonymous ID
   let uid = localStorage.getItem("cbuid");
   if (!uid) {
     uid = String(Math.floor(Math.random() * 1e9));
@@ -13,6 +33,11 @@ const getUid = (): string => {
 };
 
 export const uid = getUid();
+
+// Helper to refresh UID before each API call
+export const refreshUid = () => {
+  return getUid();
+};
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
@@ -32,7 +57,7 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
 // Search cocktails by name
 export async function searchByName(name: string): Promise<Cocktail[]> {
   return apiFetch<Cocktail[]>(
-    `/cocktails/by-name?name=${encodeURIComponent(name)}&user_id=${uid}`
+    `/cocktails/by-name?name=${encodeURIComponent(name)}&user_id=${refreshUid()}`
   );
 }
 
@@ -41,25 +66,25 @@ export async function searchByIngredients(
   ingredients: string
 ): Promise<Cocktail[]> {
   return apiFetch<Cocktail[]>(
-    `/cocktails/by-ingredients?ingredients=${encodeURIComponent(ingredients)}&user_id=${uid}`
+    `/cocktails/by-ingredients?ingredients=${encodeURIComponent(ingredients)}&user_id=${refreshUid()}`
   );
 }
 
 // Get a random cocktail
 export async function getRandomCocktail(): Promise<Cocktail> {
-  return apiFetch<Cocktail>(`/cocktails/random?user_id=${uid}`);
+  return apiFetch<Cocktail>(`/cocktails/random?user_id=${refreshUid()}`);
 }
 
 // Get user history
 export async function getHistory(limit = 20): Promise<HistoryEntry[]> {
   return apiFetch<HistoryEntry[]>(
-    `/history?user_id=${uid}&limit=${limit}`
+    `/history?user_id=${refreshUid()}&limit=${limit}`
   );
 }
 
 // Get favorites
 export async function getFavorites(): Promise<Favorite[]> {
-  return apiFetch<Favorite[]>(`/favorites?user_id=${uid}`);
+  return apiFetch<Favorite[]>(`/favorites?user_id=${refreshUid()}`);
 }
 
 // Add favorite
@@ -70,7 +95,7 @@ export async function addFavorite(
   return apiFetch<Favorite>("/favorites", {
     method: "POST",
     body: JSON.stringify({
-      telegram_user_id: Number(uid),
+      telegram_user_id: Number(refreshUid()),
       cocktail_id: cocktailId,
       cocktail_name: cocktailName,
     }),
@@ -79,7 +104,7 @@ export async function addFavorite(
 
 // Remove favorite
 export async function removeFavorite(cocktailId: string): Promise<void> {
-  await fetch(`${API_BASE}/favorites/${cocktailId}?user_id=${uid}`, {
+  await fetch(`${API_BASE}/favorites/${cocktailId}?user_id=${refreshUid()}`, {
     method: "DELETE",
   });
 }

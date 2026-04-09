@@ -62,6 +62,7 @@ CocktailBot is a Telegram bot backed by a FastAPI service and PostgreSQL databas
 | Bot | Python + aiogram 3.x | — |
 | Backend | Python + FastAPI | 8000 |
 | Database | PostgreSQL 16 | 5432 |
+| pgAdmin | pgAdmin 4 | 5050 |
 
 ---
 
@@ -332,6 +333,108 @@ Use these in the Telegram bot during your demo:
 3. `/ingredients gin, tonic` — Gin & Tonic variations
 4. `Margarita` — Deterministic name detection → full recipe
 5. `/history` — Shows your search history from the database
+
+---
+
+## User Registration & Authentication
+
+### Frontend User Interface
+
+The web application now includes a complete user registration and authentication system:
+
+**Registration Page** (`/#/register`):
+- Create a new account with username, email, and password
+- Password must be at least 6 characters
+- Passwords are securely hashed with bcrypt before storage
+- Automatic login after successful registration
+
+**Login Page** (`/#/login`):
+- Sign in with username and password
+- Session persists across page reloads (stored in localStorage)
+- Secure logout functionality
+
+**Protected Features**:
+- **Favorites**: Only registered users can save and view favorite cocktails
+- **History**: Only registered users can view their search history
+- Unauthenticated users are prompted to login/register when accessing protected pages
+
+### User Registration API
+
+The backend provides user authentication endpoints:
+
+**Register:** `POST /users/register`
+
+**Request Body:**
+```json
+{
+  "username": "johndoe",
+  "email": "john@example.com",
+  "password": "securepassword123"
+}
+```
+
+
+**Response (200 OK):**
+```json
+{
+  "id": 1,
+  "username": "johndoe",
+  "email": "john@example.com"
+}
+```
+
+**Example with curl:**
+```bash
+curl -X POST http://localhost:8000/users/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "johndoe",
+    "email": "john@example.com",
+    "password": "securepassword123"
+  }'
+```
+
+**Error Responses:**
+- `400 Bad Request` — Username or email already exists
+- `422 Validation Error` — Invalid input format
+
+Passwords are securely hashed using bcrypt before storage.
+
+### pgAdmin — Database Management Interface
+
+pgAdmin is a web-based management tool for the PostgreSQL database, accessible at [http://localhost:5050](http://localhost:5050).
+
+**Default Credentials:**
+- **Email:** `admin@local.dev` (customizable via `PGADMIN_EMAIL` in `.env`)
+- **Password:** `admin` (customizable via `PGADMIN_PASSWORD` in `.env`)
+
+**Connecting to the Database in pgAdmin:**
+
+1. Open [http://localhost:5050](http://localhost:5050) in your browser
+2. Log in with the credentials above
+3. Click "Add New Server"
+4. In the **Connection** tab:
+   - **Host name/address:** `db` (Docker service name)
+   - **Port:** `5432`
+   - **Maintenance database:** `cocktaildb`
+   - **Username:** `cocktail`
+   - **Password:** `cocktail`
+5. Click **Save**
+
+You can now:
+- Browse all tables (`users`, `cached_cocktails`, `search_history`, `favorites`)
+- Execute SQL queries
+- View and edit user records
+- Monitor database performance
+
+**Environment Variables:**
+
+Add these to your `.env` file to customize pgAdmin:
+
+```dotenv
+PGADMIN_EMAIL=your-email@example.com
+PGADMIN_PASSWORD=your-secure-password
+```
 
 ---
 
